@@ -1,34 +1,42 @@
 import os
 from openai import OpenAI
 
-# Connect to OpenAI using the API key stored in GitHub Secrets
+# Connect to Groq using its API key
 client = OpenAI(
-    api_key=os.environ.get("OPENAI_API_KEY")
+    api_key=os.environ["GROQ_API_KEY"],
+    base_url="https://api.groq.com/openai/v1"
 )
 
 
 def generate_devops_project():
     prompt = """
-    Create a practical DevOps project for an AWS DevOps Engineer.
+    Create a practical AWS DevOps project README.
 
-    Requirements:
-    - Choose a useful real-world DevOps project.
-    - Include a project title and overview.
-    - Explain the architecture.
-    - List the technologies used.
-    - Provide implementation steps.
-    - Include example commands where appropriate.
-    - Include security best practices.
-    - Write a complete README.md.
-    - Do not include real passwords, API keys, or credentials.
+    Include:
+    1. Project title and overview
+    2. Architecture
+    3. Technologies used
+    4. Implementation steps
+    5. Example commands
+    6. Security best practices
+    7. Cleanup instructions
+
+    Do not include passwords, API keys, or credentials.
+    Return only the README content.
     """
 
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=prompt
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.7
     )
 
-    project_readme = response.output_text
+    project_readme = response.choices[0].message.content
 
     with open("README.md", "w", encoding="utf-8") as file:
         file.write(project_readme)
