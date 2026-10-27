@@ -1,180 +1,84 @@
-import os
-import json
-import re
-from pathlib import Path
-
-import requests
-from openai import OpenAI
-
-
-# --------------------------------------------------
-# CONFIGURATION
-# --------------------------------------------------
-
-GITHUB_TOKEN = os.environ["GH_TOKEN"]
-GITHUB_USERNAME = "SatishPolaka"
-
-GROQ_API_KEY = os.environ["GROQ_API_KEY"]
-MODEL = "openai/gpt-oss-120b"
-
-PROJECTS_DIR = Path("generated-projects")
-
-GITHUB_API = "https://api.github.com"
-
-GITHUB_HEADERS = {
-    "Authorization": f"Bearer {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-}
-
-client = OpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1",
-)
-
-
-# --------------------------------------------------
-# GITHUB API
-# --------------------------------------------------
-
-def github_request(method, endpoint, **kwargs):
-    """Make a GitHub API request and report useful errors."""
-
-    response = requests.request(
-        method,
-        f"{GITHUB_API}{endpoint}",
-        headers=GITHUB_HEADERS,
-        timeout=60,
-        **kwargs,
-    )
-
-    if not response.ok:
-        raise RuntimeError(
-            f"GitHub API error {response.status_code}: "
-            f"{response.text[:1000]}"
-        )
-
-    if response.status_code == 204:
-        return {}
-
-    return response.json()
-
-
-def get_existing_repositories():
-    """Fetch repositories owned by the authenticated user."""
-
-    repositories = []
-    page = 1
-
-    while True:
-        batch = github_request(
-            "GET",
-            "/user/repos",
-            params={
-                "visibility": "all",
-                "affiliation": "owner",
-                "per_page": 100,
-                "page": page,
-                "sort": "created",
-                "direction": "desc",
-            },
-        )
-
-        if not batch:
-            break
-
-        repositories.extend(batch)
-        page += 1
-
-    return repositories
-
-
-# --------------------------------------------------
-# DUPLICATE CHECKING
-# --------------------------------------------------
-
-def find_duplicate_project(name, description, repositories):
-    """Check names and descriptions for likely duplicates."""
-
-    name_normalized = name.lower().replace("-", " ")
-
-    for repo in repositories:
-        existing_name = repo["name"].lower()
-        existing_description = (
-            repo.get("description") or ""
-        ).lower()
-
-        if existing_name == name.lower():
-            return repo["name"]
-
-        existing_normalized = existing_name.replace("-", " ")
-
-        if existing_normalized == name_normalized:
-            return repo["name"]
-
-        if (
-            description
-            and existing_description
-            and existing_description == description.lower()
-        ):
-            return repo["name"]
-
-    return None
-
-
-# --------------------------------------------------
-# PROJECT GENERATION
-# --------------------------------------------------
-
 def generate_project(repositories):
-    """Generate a medium-sized DevOps project using AI."""
+    """Generate a unique browser game using AI."""
 
     existing_names = [
         repo["name"] for repo in repositories
     ]
 
+    existing_descriptions = [
+        {
+            "name": repo["name"],
+            "description": repo.get("description") or ""
+        }
+        for repo in repositories
+    ]
+
     prompt = f"""
-Create ONE practical AWS DevOps project suitable for an
-engineer with 4+ years of experience.
+Create ONE complete, playable browser game for GitHub.
 
 Existing repositories:
-{json.dumps(existing_names)}
+{json.dumps(existing_descriptions)}
 
-Project requirements:
-- Generate 5 to 7 useful files.
-- Include a complete README.md.
-- Include a Dockerfile.
-- Include docker-compose.yml when appropriate.
-- Include a Jenkinsfile or GitHub Actions workflow.
-- Include Terraform or Kubernetes files when appropriate.
-- Include real implementation code, not placeholders.
-- Include setup, testing, security, and cleanup instructions.
-- Do not include real credentials.
-- Do not automatically create cloud infrastructure.
-- Keep the implementation medium-sized and maintainable.
-- Avoid projects equivalent to the existing repositories.
+GAME CATEGORIES:
+- Arcade: Snake, Breakout, retro games
+- Racing: car racing, obstacle racing
+- Action: space shooter, survival games
+- Puzzle: Sudoku, 2048, memory games
+- Strategy: chess, checkers, tower defense
+- Adventure: platformers, treasure hunts
+- Sports: cricket, football, basketball
+- Brain games: quizzes, word puzzles
+- Simulation: farming, city building
+- RPG: quests, inventory, character progression
+- 3D: simple 3D racing or exploration
+- Casual: endless runner, clicker games
 
-Return ONLY a valid JSON object in this format:
+Choose a suitable category and create a different game
+concept from existing projects.
+
+TECHNICAL REQUIREMENTS:
+- Use HTML, CSS and JavaScript for a browser game.
+- Use Canvas when appropriate for 2D games.
+- Use Three.js only when a 3D game genuinely needs it.
+- Generate a complete, playable implementation.
+- Include responsive design for desktop and mobile.
+- Include start, restart and game-over functionality.
+- Add score tracking when appropriate.
+- Include keyboard or touch controls as appropriate.
+- Include a README.md with gameplay and run instructions.
+- Include all necessary source files.
+- Include between 5 and 8 useful files.
+- Do not include real credentials or API keys.
+- Do not create cloud infrastructure automatically.
+- Do not use placeholder implementations.
+- Avoid duplicating existing repository names or game concepts.
+- Keep dependencies minimal.
+
+Return ONLY a valid JSON object using this structure:
 
 {{
-  "name": "unique-kebab-case-name",
-  "description": "Short project description",
+  "name": "unique-game-name",
+  "description": "Short description of the game",
   "files": {{
     "README.md": "Complete README content",
-    "Dockerfile": "Complete Dockerfile content"
+    "index.html": "Complete HTML source",
+    "style.css": "Complete CSS source",
+    "game.js": "Complete JavaScript source",
+    "package.json": "Only if required"
   }}
 }}
 
-Return between 5 and 7 files.
+Return between 5 and 8 files.
 
-JSON requirements:
-- Escape quotation marks correctly.
-- Represent newlines inside strings as \\n.
+JSON RULES:
+- Return valid JSON only.
+- Escape quotation marks and newlines correctly.
 - Do not use Markdown code fences.
-- Return the complete JSON object.
+- Do not omit required source code.
+- Ensure the game can run using the instructions in README.md.
 """
 
-    print("Requesting a DevOps project from Groq...")
+    print("Requesting a new browser game from Groq...")
 
     response = client.chat.completions.create(
         model=MODEL,
@@ -182,8 +86,9 @@ JSON requirements:
             {
                 "role": "system",
                 "content": (
-                    "You generate practical DevOps project files. "
-                    "Return only valid JSON. Keep responses concise. "
+                    "You are an experienced browser game developer. "
+                    "Generate complete, playable HTML, CSS and "
+                    "JavaScript games. Return valid JSON only. "
                     "Never include real credentials."
                 ),
             },
@@ -192,7 +97,7 @@ JSON requirements:
                 "content": prompt,
             },
         ],
-        temperature=0.2,
+        temperature=0.8,
         max_tokens=12000,
     )
 
@@ -202,7 +107,7 @@ JSON requirements:
     if choice.finish_reason == "length":
         raise RuntimeError(
             "AI response was truncated. "
-            "Run the workflow again to request another project."
+            "No repository has been created."
         )
 
     if content.startswith("```"):
@@ -229,27 +134,27 @@ JSON requirements:
     description = project.get("description", "")
     files = project.get("files", {})
 
-    if not isinstance(name, str):
-        raise RuntimeError("Invalid project name.")
-
-    if not re.fullmatch(
+    if not isinstance(name, str) or not re.fullmatch(
         r"[a-z0-9]+(?:-[a-z0-9]+)*",
         name,
     ):
+        raise RuntimeError("Invalid game repository name.")
+
+    if not isinstance(description, str) or not description.strip():
+        raise RuntimeError("Invalid game description.")
+
+    if not isinstance(files, dict) or not 5 <= len(files) <= 8:
         raise RuntimeError(
-            f"Invalid repository name returned by AI: {name}"
+            "Expected between 5 and 8 game files."
         )
 
-    if not isinstance(description, str):
-        raise RuntimeError("Invalid project description.")
+    required_files = {"README.md", "index.html", "game.js", "style.css"}
 
-    if not isinstance(files, dict) or not 5 <= len(files) <= 7:
+    if not required_files.issubset(files):
         raise RuntimeError(
-            "Expected between 5 and 7 project files."
+            "The game must include README.md, index.html, "
+            "style.css and game.js."
         )
-
-    if "README.md" not in files:
-        raise RuntimeError("Project must include README.md.")
 
     duplicate = find_duplicate_project(
         name,
@@ -259,16 +164,14 @@ JSON requirements:
 
     if duplicate:
         print(
-            f"Duplicate detected: {duplicate}. "
+            f"Duplicate repository detected: {duplicate}. "
             "No repository will be created."
         )
         return None
 
-    # Validate every path and file before writing anything.
     for filename, file_content in files.items():
-
         if not isinstance(filename, str):
-            raise RuntimeError("Invalid project filename.")
+            raise RuntimeError("Invalid game filename.")
 
         path = Path(filename)
 
@@ -280,15 +183,14 @@ JSON requirements:
             or not file_content.strip()
         ):
             raise RuntimeError(
-                f"Invalid or unsafe project file: {filename}"
+                f"Invalid or unsafe game file: {filename}"
             )
 
         if path.parts[0] == ".git":
             raise RuntimeError(
-                "Generated projects cannot contain .git files."
+                "Generated games cannot contain .git files."
             )
 
-        # Basic checks for obvious hardcoded secrets.
         secret_patterns = [
             r"AKIA[0-9A-Z]{16}",
             r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
@@ -303,12 +205,11 @@ JSON requirements:
                     "Nothing will be published."
                 )
 
-    # Save the project locally in the runner.
     project_dir = PROJECTS_DIR / name
 
     if project_dir.exists():
         raise RuntimeError(
-            f"Project directory already exists: {name}"
+            f"Game directory already exists: {name}"
         )
 
     project_dir.mkdir(
@@ -327,179 +228,7 @@ JSON requirements:
             encoding="utf-8",
         )
 
-    print(f"Project generated: {name}")
+    print(f"Game generated: {name}")
     print(f"Files generated: {len(files)}")
 
     return name, description, project_dir
-
-
-# --------------------------------------------------
-# GITHUB REPOSITORY CREATION
-# --------------------------------------------------
-
-def create_repository(name, description):
-    """Create a new public GitHub repository."""
-
-    # Check again immediately before creating the repository.
-    repositories = get_existing_repositories()
-
-    duplicate = find_duplicate_project(
-        name,
-        description,
-        repositories,
-    )
-
-    if duplicate:
-        print(
-            f"Repository already exists: {duplicate}. "
-            "Publishing cancelled."
-        )
-        return None
-
-    repository = github_request(
-        "POST",
-        "/user/repos",
-        json={
-            "name": name,
-            "description": description[:350],
-            "private": False,
-            "auto_init": True,
-        },
-    )
-
-    print(f"Created repository: {repository['html_url']}")
-
-    return repository
-
-
-# --------------------------------------------------
-# PROJECT UPLOAD
-# --------------------------------------------------
-
-def upload_project(repository, project_dir):
-    """Upload generated files in one Git commit."""
-
-    owner = repository["owner"]["login"]
-    name = repository["name"]
-
-    branch = repository["default_branch"]
-
-    reference = github_request(
-        "GET",
-        f"/repos/{owner}/{name}/git/ref/heads/{branch}",
-    )
-
-    parent_sha = reference["object"]["sha"]
-
-    parent_commit = github_request(
-        "GET",
-        f"/repos/{owner}/{name}/git/commits/{parent_sha}",
-    )
-
-    parent_tree_sha = parent_commit["tree"]["sha"]
-
-    tree = []
-
-    for path in sorted(project_dir.rglob("*")):
-
-        if not path.is_file():
-            continue
-
-        relative_path = path.relative_to(
-            project_dir
-        ).as_posix()
-
-        content = path.read_text(
-            encoding="utf-8",
-        )
-
-        blob = github_request(
-            "POST",
-            f"/repos/{owner}/{name}/git/blobs",
-            json={
-                "content": content,
-                "encoding": "utf-8",
-            },
-        )
-
-        tree.append({
-            "path": relative_path,
-            "mode": "100644",
-            "type": "blob",
-            "sha": blob["sha"],
-        })
-
-    if not tree:
-        raise RuntimeError("No project files to upload.")
-
-    new_tree = github_request(
-        "POST",
-        f"/repos/{owner}/{name}/git/trees",
-        json={
-            "base_tree": parent_tree_sha,
-            "tree": tree,
-        },
-    )
-
-    commit = github_request(
-        "POST",
-        f"/repos/{owner}/{name}/git/commits",
-        json={
-            "message": "Add generated DevOps project",
-            "tree": new_tree["sha"],
-            "parents": [parent_sha],
-        },
-    )
-
-    github_request(
-        "PATCH",
-        f"/repos/{owner}/{name}/git/refs/heads/{branch}",
-        json={
-            "sha": commit["sha"],
-            "force": False,
-        },
-    )
-
-    print("Project files uploaded successfully.")
-    print(f"Repository URL: {repository['html_url']}")
-
-
-# --------------------------------------------------
-# MAIN
-# --------------------------------------------------
-
-def main():
-    print("AI DevOps Agent started.")
-    print("Execution mode: Manual GitHub Actions trigger.")
-
-    repositories = get_existing_repositories()
-
-    print(f"Existing repositories found: {len(repositories)}")
-
-    generated = generate_project(repositories)
-
-    if generated is None:
-        print("No project published.")
-        return
-
-    name, description, project_dir = generated
-
-    repository = create_repository(
-        name,
-        description,
-    )
-
-    if repository is None:
-        print("Duplicate detected. Nothing uploaded.")
-        return
-
-    upload_project(
-        repository,
-        project_dir,
-    )
-
-    print("AI DevOps Agent completed successfully.")
-
-
-if __name__ == "__main__":
-    main()
